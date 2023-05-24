@@ -43,4 +43,4 @@ jobs:
             docker pull "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
             docker stop tsp-backend
             docker system prune -f
-            docker run --name tsp-backend -dit -p 3001:3000 "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
+            docker run --name tsp-backend -d -dit -p 3001:3000 "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
