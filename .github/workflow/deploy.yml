@@ -1,0 +1,46 @@
+name: Build and Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      logLevel:
+        description: 'Log level'
+        required: true
+        default: 'info'
+        # options: ['info', 'debug', 'trace']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container: node:14
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build and Deploy
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: GPabis/TSP-Backend/tsp-backend
+          registry: ghcr.io
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          dockerfile: Dockerfile
+          tags: latest
+      - name: Deploy package to vps
+        uses: appleboy/ssh-action@master
+        env:
+          GITHUB_USERNAME: ${{ secrets.USERNAME }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          port: ${{ secrets.VPS_PORT }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_KEY }}
+          passphrase: ${{ secrets.VPS_PASSPHRASE }}
+          envs: GITHUB_USERNAME,GITHUB_TOKEN
+          script: |
+            docker login ghcr.io -u $GITHUB_USERNAME -p $GITHUB_TOKEN
+            docker pull "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
+            docker stop tsp-backend
+            docker system prune -f
+            docker run --name tsp-backend -dit -p 3001:3000 "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
