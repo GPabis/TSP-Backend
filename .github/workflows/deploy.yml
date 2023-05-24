@@ -31,6 +31,7 @@ jobs:
         env:
           GITHUB_USERNAME: ${{ secrets.USERNAME }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APP_PORT: ${{ secrets.APP_PORT }}
         with:
           host: ${{ secrets.VPS_HOST }}
           port: ${{ secrets.VPS_PORT }}
@@ -43,4 +44,4 @@ jobs:
             docker pull "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
             docker stop tsp-backend
             docker system prune -f
-            docker run --name tsp-backend -d -dit -p 4020:3000 "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
+            docker run --name tsp-backend -d -dit -p $APP_PORT:3000 "ghcr.io/gpabis/tsp-backend/tsp-backend:latest"
