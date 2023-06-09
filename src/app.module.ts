@@ -6,6 +6,8 @@ import { UsersModule } from './users/users.module';
 import { ConfigModule} from "@nestjs/config";
 import configuration from "./config/configuration";
 import {DatabaseModule} from "./database/database.module";
+import { AlgorithmsController } from './algorithms/algorithms.controller';
+import { AlgorithmsModule } from './algorithms/algorithms.module';
 
 @Module({
   imports: [ConfigModule.forRoot({
@@ -15,7 +17,8 @@ import {DatabaseModule} from "./database/database.module";
   }),
     DatabaseModule,
     AuthModule,
-    UsersModule
+    UsersModule,
+    AlgorithmsModule
   ],
   controllers: [AppController],
   providers: [AppService],
