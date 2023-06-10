@@ -2,7 +2,7 @@ import {Injectable} from "@nestjs/common";
 import {AlgorithmRequest, AlgorithmResponse, Node as AntNodeType} from "./dto/antColonyAlgorithm.dto";
 import {Colony} from "./colony";
 import {BranchAndBoundAlgorithm} from "./branchAndBound";
-import {LinKernighanAlgorithm} from "./linKernighanAlgorithm";
+import { Tour } from "./linKernighanAlgorithm";
 
 @Injectable()
 export class AlgorithmsService {
@@ -20,7 +20,7 @@ export class AlgorithmsService {
     }
 
     public runLinKernighanAlgorithm = (nodes: AlgorithmRequest): AlgorithmResponse | void => {
-        const linKernighan = new LinKernighanAlgorithm();
+        const linKernighan = new Tour();
         linKernighan.temporaryTest();
     }
 }
