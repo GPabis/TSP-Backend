@@ -17,7 +17,7 @@ export class AlgorithmsController {
     }
 
     @Post('linKernighanAlgorithm')
-    public getLinKernighanAlgorithm(@Body() nodes: AlgorithmRequest): AlgorithmResponse | void {
-
+    public getLinKernighanAlgorithm(@Body() nodes: AlgorithmRequest): AlgorithmResponse {
+        return this.antColonyService.runLinKernighanAlgorithm(nodes);
     }
 }
