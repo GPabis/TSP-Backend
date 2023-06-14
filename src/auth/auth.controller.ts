@@ -19,10 +19,10 @@ export class AuthController {
         return response.send(user)
     }
 
-    @Post('register')
-    register(@Body() registerDto: RegisterRequestDto) {
-        return this.authService.register(registerDto);
-    }
+    // @Post('register')
+    // register(@Body() registerDto: RegisterRequestDto) {
+    //     return this.authService.register(registerDto);
+    // }
 
     @UseGuards(JwtAuthGuard)
     @Post('logout')
