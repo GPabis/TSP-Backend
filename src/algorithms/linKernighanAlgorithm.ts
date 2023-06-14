@@ -1,361 +1,908 @@
-import {AlgorithmResponse, Node} from "./dto/antColonyAlgorithm.dto";
-
-function shuffle(array) {
-    let currentIndex = array.length,  randomIndex;
-
-    // While there remain elements to shuffle.
-    while (currentIndex != 0) {
-
-        // Pick a remaining element.
-        randomIndex = Math.floor(Math.random() * currentIndex);
-        currentIndex--;
-
-        // And swap it with the current element.
-        [array[currentIndex], array[randomIndex]] = [
-            array[randomIndex], array[currentIndex]];
-    }
-
-    return array;
-}
+import { shuffle } from "./utils";
 
 export class LKNode {
-    public constructor(public readonly node: Node, public  readonly  index: number) {}
+    public index: number = -1;
+    public position: number = -1;
+    public predecessor: LKNode = null;
+    public successor: LKNode = null;
+    public lat: number;
+    public lng: number;
 
-    public distanceToNode = (targetNode: LKNode): number => {
-        if(this.node.nodeIndex === targetNode.node.nodeIndex) return 0;
-        const radLat1 = (this.node.lat * Math.PI )/ 180;
-        const radLat2 = (targetNode.node.lat * Math.PI )/ 180;
+    public constructor(lat: number, lng: number) {
+        this.lat = lat;
+        this.lng = lng;
+    }
 
-        const theta = this.node.lng - targetNode.node.lng;
-        const radTheta = (theta * Math.PI )/ 180;
+    public equals(node: LKNode): boolean {
+        return this.index === node.index;
+    }
 
-        let dist = Math.sin(radLat1) * Math.sin(radLat2) + Math.cos(radLat1) * Math.cos(radLat2) * Math.cos(radTheta);
-
-        if (dist > 1) {
-            dist = 1;
-        }
-
-        dist = Math.acos(dist);
-        dist = (dist * 180) / Math.PI;
-        dist = dist * 60 * 1.1515;
-        dist = dist * 1.609344;
-
-        return dist;
+    public greaterThan(node: LKNode): boolean {
+        return this.index > node.index;
     }
 }
 
-export class Tour {
-    public tour: number[];
-    public sizeOfTour: number;
-    public edges: Array<[number, number]>
-    public costOfTour: number;
+export class Edge {
+    public node1: LKNode;
+    public node2: LKNode;
 
-    public constructor(tour: number[], public readonly distanceMatrix: number[][]) {
-        this.tour = shuffle(tour);
-        this.sizeOfTour = this.tour.length;
-        this.makeEdges();
-        this.costOfTour = this.calculateCost();
-    }
+    public constructor(node1: LKNode, node2: LKNode) {
 
-    public makePair = (i: number, j: number): [number, number] => {
-        if (i < j)
-            return [i, j];
-        return [j, i];
-    }
+        if(node1.equals(node2)) throw new Error("Cannot create edge between same nodes");
 
-    public makeEdges = () => {
-        this.edges = [];
-        for (let i = 0; i < this.sizeOfTour; i++) {
-            if(i === this.sizeOfTour - 1) {
-                this.edges.push(this.makePair(this.tour[i], this.tour[0]));
-            } else {
-                this.edges.push(this.makePair(this.tour[i], this.tour[i + 1]));
-            }
-        }
-    };
-
-    public makeShortestEdges = () => {
-        const edges = [];
-        let tour: number[] = [];
-        tour.push(0);
-        for (let i = 0; i < this.sizeOfTour; i++){
-            const sortedDistanceMatrix = [...this.distanceMatrix[tour[tour.length -1]]]
-            sortedDistanceMatrix.sort((distA, distB) => distA - distB);
-            for(let j = 1; j < sortedDistanceMatrix.length; j++) {
-                const index = this.distanceMatrix[tour[tour.length -1]].indexOf(sortedDistanceMatrix[j]);
-                if(tour.some(node => node === index)) {
-                    continue;
-                }
-
-                edges.push(this.makePair(tour[tour.length-1], index));
-                tour.push(index);
-                break;
-            }
-        }
-
-        this.tour = tour;
-        this.edges = edges;
-        this.costOfTour = this.calculateCost();
-    }
-
-    public at = (index: number): number => {
-        return this.tour[index];
-    }
-
-    public index = (node: number): number => {
-        return this.tour.indexOf(node);
-    }
-
-    public getPredecessorAndSuccessor = (node: number): [number, number] => {
-        const index = this.index(node);
-        if(index === 0) {
-            return [this.tour[this.sizeOfTour - 1], this.tour[index + 1]];
-        } else if(index === this.sizeOfTour - 1) {
-            return [this.tour[index - 1], this.tour[0]];
+        if(node1.greaterThan(node2)) {
+            this.node1 = node2;
+            this.node2 = node1;
         } else {
-            return [this.tour[index - 1], this.tour[index + 1]];
+            this.node1 = node1;
+            this.node2 = node2;
         }
     }
 
-    public generateNewTour = (brokenEdges: Array<[number, number]>, joinedEdges: Array<[number, number]>) => {
-        let edges = [...this.edges.filter((edge) =>
-            !brokenEdges.some((brokenEdge) =>
-                (brokenEdge[0] === edge[0] && brokenEdge[1] === edge[1]) || (brokenEdge[0] === edge[1] && brokenEdge[1] === edge[0]))),
-            ...joinedEdges.map((joinedEdge) => this.makePair(joinedEdge[0], joinedEdge[1]))
-        ];
-
-        console.log(edges)
-        console.log(edges.length)
-        console.log(this.sizeOfTour)
-
-        if(edges.length !== this.sizeOfTour) {
-            console.log("Not enough edges to generate new tour")
-            return {
-                isTour: false,
-                tour: []
-            }
-        }
-
-
-        let tour = [];
-        tour.push(0);
-        while (tour.length !== this.sizeOfTour) {
-            const nextEdge = edges.find(edge => {
-                if(edge[0] === tour[tour.length - 1] && !tour.includes(edge[1])) {
-                    return true;
-                } else if (edge[1] === tour[tour.length - 1] && !tour.includes(edge[0])) {
-                    return true;
-                } else {
-                    return false;
-                }
-            });
-
-            if(!nextEdge) {
-                break;
-            }
-
-            const nextNode = nextEdge.find(edgeNode => edgeNode !== tour[tour.length - 1]);
-            tour.push(nextNode);
-        }
-
-        return {
-            // edges: edges,
-            isTour: tour.length === this.sizeOfTour,
-            tour: tour
-        }
+    public equals(edge: Edge): boolean {
+        return (this.node1.equals(edge.node1) && this.node2.equals(edge.node2)) ||
+            (this.node1.equals(edge.node2) && this.node2.equals(edge.node1));
     }
 
-    public saveTour = (tour: number[]): void => {
-        // this.edges = edges;
-        this.tour = tour;
-        this.costOfTour = this.calculateCost();
-
-        this.makeEdges();
-    }
-
-    public calculateCost = (): number => {
-        let cost = 0;
-        for (let i = 0; i < this.sizeOfTour; i++) {
-            if(i === this.sizeOfTour - 1) {
-                cost += this.distanceMatrix[this.tour[i]][this.tour[0]];
-            } else {
-                cost += this.distanceMatrix[this.tour[i]][this.tour[i + 1]];
-            }
-        }
-        return cost;
+    public hash(): string {
+        return `(${this.node1.index}-${this.node2.index})`;
     }
 }
 
-export class LinKernighanAlgorithm {
-    public distanceMatrix: number[][];
-    public alreadyFoundedSolutions: Set<string>;
-    public LKNodes: LKNode[];
-    public currentTour: Tour;
-    public neighbors: Array<Array<[number, number]>> = [];
-    public time: bigint = BigInt(0);
+type SwapType = 'swap_feasible' | 'swap_unfeasible' | 'swap_node_between_t2_t3' | 'swap_node_between_t2_t3_reversed' | 'swap_feasible_reversed';
 
-    public constructor(public readonly initNodes: Node[]) {
-        this.LKNodes = initNodes.map((node, index) => new LKNode(node, index));
-        this.distanceMatrix = this.LKNodes.map((node) => this.LKNodes.map((targetNode) => node.distanceToNode(targetNode)));
-        this.currentTour = new Tour(this.LKNodes.map((node) => node.index), this.distanceMatrix);
+export class LKTour {
+    public edges: Edge[];
+    public nodes: LKNode[];
+    public cost: number;
+    public size: number;
+    public haveSameSuccessor: boolean = false;
+    public swapStack: Array<[LKNode, LKNode, LKNode, LKNode, SwapType] | [LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, 'swap_double_bridge']>;
+
+    public constructor(nodes: LKNode[]) {
+        this.nodes = nodes;
+        this.size = nodes.length;
+        this.setNodes();
+
+        this.edges = [];
+        this.setEdges();
+        this.cost = 0;
+
+        this.swapStack = [];
     }
 
-    public optimize = (): void => {
-        this.time = BigInt(Date.now());
-        let better = true;
-        this.alreadyFoundedSolutions = new Set<string>();
+    public setNodes(): void {
+        for (let i = 0; i < this.size; i++) {
+            if(i === this.size -1) {
+                this.nodes[i].successor = this.nodes[0];
+            } else {
+                this.nodes[i].successor = this.nodes[i + 1];
+            }
 
-        this.LKNodes.forEach((node) => {
-            this.neighbors[node.index] = []
+            if(i === 0) {
+                this.nodes[i].predecessor = this.nodes[this.size - 1];
+            } else {
+                this.nodes[i].predecessor = this.nodes[i - 1];
+            }
 
-            this.distanceMatrix[node.index].forEach((distance, index) => {
-                if(distance > 0 && this.currentTour.tour.includes(index)) {
-                    this.neighbors[node.index].push([index, this.distanceMatrix[node.index][index]]);
-                    this.neighbors[node.index].sort((a, b) => a[1] - b[1]);
-                }
-            })
-        });
-
-        while(better) {
-            better = this.improve();
-            this.alreadyFoundedSolutions.add(this.currentTour.tour.toString());
+            this.nodes[i].position = i;
+            this.nodes[i].index = i;
         }
-        this.time = BigInt(Date.now()) - BigInt(this.time);
     }
-    //
-    // public closest = (t2i: number, gain: number, brokenEdges: Array<[number, number]>, joinedEdges: Array<[number, number]>): Array<[number, number]> => {
-    //     const neighbors: Array<[number, number]> = [];
-    //
-    //     for (const node of this.neighbors[t2i]){
-    //         const yi = this.currentTour.makePair(t2i, node[0]);
-    //         const Gi = gain - node[1];
-    //
-    //         const isInBrokenEdges = brokenEdges.some((brokenEdge) =>
-    //             (brokenEdge[0] === yi[0] && brokenEdge[1] === yi[1]) ||
-    //             (brokenEdge[0] === yi[1] && brokenEdge[1] === yi[0]));
-    //
-    //         const isInTour = this.currentTour.edges.some((edge) => (edge[0] === yi[0] && edge[1] === yi[1]) || (edge[0] === yi[1] && edge[1] === yi[0]));
-    //
-    //         if(Gi <= 0 || !isInBrokenEdges || !isInTour) {
-    //             continue;
-    //         }
-    //
-    //         for (const succ of this.currentTour.getPredecessorAndSuccessor(node[0])) {
-    //             const xi = this.currentTour.makePair(node[0], succ);;
-    //
-    //             if(xi[0] === t2i || xi[1] === t2i) {
-    //                 continue;
-    //             }
-    //         }
-    //     }
-    // }
 
-    public improve = (): boolean => {
-        for (const t1 of this.currentTour.tour) {
-            const neighbors = this.currentTour.getPredecessorAndSuccessor(t1);
+    public setEdges(): void {
+        let tourEdges = [];
+        let currNode = this.nodes[0];
 
-            for(const t2 of neighbors) {
-                const brokenEdges = [this.currentTour.makePair(t1, t2)];
-                const gain = this.distanceMatrix[t1][t2];
+        while(currNode.successor.index != this.nodes[0].index) {
+            tourEdges.push(new Edge(currNode, currNode.successor));
+            currNode = currNode.successor;
+        }
 
-                const closestArr = this.neighbors[t2].filter((neighbor) => {
-                    const inBrokenEdges = brokenEdges.some((brokenEdge) => brokenEdge[0] === neighbor[0] || brokenEdge[1] === neighbor[0]);
-                    const around = this.currentTour.getPredecessorAndSuccessor(neighbor[0]);
-                    const isGainNegative = this.distanceMatrix[neighbor[0]][around[1]] - neighbor[1] < 0;
-                    const isSecoundGainNegative = gain - neighbor[1] < 0;
-                    const tourContains = this.currentTour.edges.some((edge) => (edge[0] === neighbor[0]  && edge[1] === t2) || (edge[0] === t2 && edge[1] === neighbor[0]));
-                    return !inBrokenEdges && !tourContains && !isSecoundGainNegative && !isGainNegative;
-                });
+        tourEdges.push(new Edge(currNode, currNode.successor));
+        this.edges = tourEdges;
+    }
 
-                closestArr.sort((a, b) => {
-                    const aroundA = this.currentTour.getPredecessorAndSuccessor(a[0]);
-                    const aroundB = this.currentTour.getPredecessorAndSuccessor(b[0]);
-                    const gainA = this.distanceMatrix[a[0]][aroundA[1]] - a[1];
-                    const gainB = this.distanceMatrix[b[0]][aroundB[1]] - b[1];
-                    return gainA - gainB;
-                });
+    public setCost(distanceMatrix: number[][]): void {
+        let cost = 0;
+        let currNode = this.nodes[0];
 
-                let tries = 50;
+        while (currNode.successor.index != this.nodes[0].index) {
+            cost += distanceMatrix[currNode.index][currNode.successor.index];
+            currNode = currNode.successor;
+        }
 
-                for(const closest of closestArr) {
-                    const [t3, distance] = closest;
+        cost += distanceMatrix[currNode.index][currNode.successor.index];
+        this.cost = cost;
+    }
 
-                    if(neighbors.includes(t3)) {
-                        continue;
+    public setPositions(){
+        let currNode = this.nodes[0];
+        currNode.position = 0
+
+        while (!currNode.successor.equals(this.nodes[0])) {
+            currNode = currNode.successor;
+            currNode.position = currNode.predecessor.position + 1;
+        }
+
+    }
+
+    public getNodes(randomStart: boolean = false, startingNode: LKNode | null = null){
+        let visitedNodes: LKNode[] = [...this.nodes];
+        let tourNodes = [];
+        let currNode = this.nodes[0];
+
+        if(startingNode !== null) {
+            currNode = startingNode;
+        }
+
+        if(randomStart) {
+            currNode = this.nodes[Math.floor(Math.random() * this.nodes.length)];
+        }
+
+        visitedNodes = visitedNodes.filter(node => !node.equals(currNode));
+
+        while (visitedNodes.length > 0) {
+            while (visitedNodes.find(node => node.equals(currNode.successor))) {
+                tourNodes.push(currNode);
+                currNode = currNode.successor;
+                visitedNodes = visitedNodes.filter(node => !node.equals(currNode));
+            }
+            tourNodes.push(currNode);
+
+            if(visitedNodes.length > 0) {
+                currNode = visitedNodes.values().next().value;
+            }
+        }
+
+        return tourNodes;
+    }
+
+    public shuffleNodes(): void {
+        let indexes = [...Array(this.size).keys()];
+        indexes = shuffle(indexes);
+
+        let currNode = this.nodes[indexes[indexes.length -1]]
+
+        for (let i = -1; i < this.size - 1; i++) {
+            currNode.successor = this.nodes[indexes[i + 1]];
+            if(i === -1) {
+                currNode.predecessor = this.nodes[indexes[this.size - 2]];
+            } else if (i === 0) {
+                currNode.predecessor = this.nodes[indexes[this.size - 1]];
+            } else {
+                currNode.predecessor = this.nodes[indexes[i - 1]];
+            }
+
+            currNode.position = i + 1;
+            currNode = currNode.successor;
+        }
+
+        this.setEdges();
+    }
+
+    public restore(swaps: number | null = null): void {
+        if(swaps === null)
+            swaps = this.swapStack.length;
+
+        for (let _ in [...Array(swaps).keys()]) {
+            let currStack = this.swapStack[this.swapStack.length - 1];
+
+            let t1 = currStack[0];
+            let t2 = currStack[1];
+            let t3 = currStack[2];
+            let t4 = currStack[3];
+            let swapType = currStack[8] ? 'swap_double_bridge' : currStack[4] as SwapType;
+
+            if(swapType === 'swap_feasible') this.swapFeasible(t4, t1, t2, t3, false, false);
+            else if (swapType === 'swap_unfeasible') this.swapUnfeasible(t4, t1, t2, t3, false, false);
+            else if (swapType === 'swap_node_between_t2_t3') this.swapUnfeasible(t4, t1, t2, t3, false, false);
+            else if (swapType === 'swap_node_between_t2_t3_reversed') this.swapUnfeasible(t4, t1, t2, t3, true, false);
+            else if (swapType === 'swap_feasible_reversed') this.swapFeasible(t4, t1, t2, t3, true, false);
+            this.swapStack.pop();
+        }
+        for (let swap of this.swapStack) {
+            if (swap[swap.length - 1] !== 'swap_feasible') {
+                this.setPositions();
+                break;
+            }
+        }
+    }
+
+    public between(fromNode: LKNode, betweenNode: LKNode, toNode: LKNode, usePosAttr: boolean = false): boolean {
+        if(usePosAttr) {
+            if(fromNode.position <= toNode.position) {
+                return fromNode.position < betweenNode.position && betweenNode.position < toNode.position;
+            } else {
+                return fromNode.position < betweenNode.position || betweenNode.position < toNode.position;
+            }
+        } else {
+            let node = fromNode.successor;
+
+            while (!node.equals(toNode)) {
+                if(node.equals(betweenNode)) return true;
+                else node = node.successor;
+            }
+            return false;
+        }
+    }
+
+    public isSwapFeasible(t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode): boolean {
+        if(t1.equals(t2) || t1.equals(t3) || t1.equals(t4) || t2.equals(t3) || t2.equals(t4) || t3.equals(t4)) {
+            return false;
+        }
+
+        if(t1.successor.equals(t2)){
+            if(!t4.equals(t3.predecessor))
+                return false;
+        } else if (t1.predecessor.equals(t2)){
+            if(!t4.equals(t3.successor))
+                return false;
+        }
+
+        return true;
+    }
+
+    public isSwapUnfeasible(t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode): boolean {
+        if(!(!t1.equals(t2) && !t1.equals(t3) && !t1.equals(t4) && !t2.equals(t3) && !t2.equals(t4) && !t3.equals(t4))) {
+            return false;
+        }
+
+        if(t1.successor.equals(t2)){
+            if(t4.equals(t3.predecessor))
+                return false;
+        } else if (t1.predecessor.equals(t2)){
+            if(t4.equals(t3.successor))
+                return false;
+        }
+
+        if(t2.predecessor.equals(t3) || t2.successor.equals(t3) || t1.predecessor.equals(t4) || t1.successor.equals(t4))
+            return false;
+
+        return true;
+    }
+
+    public isSwapDoubleBridge(
+        t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode,
+        t5: LKNode, t6: LKNode, t7: LKNode, t8: LKNode
+    ): [LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode] | null {
+        if(!(!t1.equals(t2) && !t1.equals(t3) && !t1.equals(t4) && !t1.equals(t5) && !t1.equals(t6) && !t1.equals(t7) && !t1.equals(t8) &&
+            !t2.equals(t3) && !t2.equals(t4) && !t2.equals(t5) && !t2.equals(t6) && !t2.equals(t7) && !t2.equals(t8) &&
+            !t3.equals(t4) && !t3.equals(t5) && !t3.equals(t6) && !t3.equals(t7) && !t3.equals(t8) &&
+            !t4.equals(t5) && !t4.equals(t6) && !t4.equals(t7) && !t4.equals(t8) &&
+            !t5.equals(t6) && !t5.equals(t7) && !t5.equals(t8) &&
+            !t6.equals(t7) && !t6.equals(t8) &&
+            !t7.equals(t8)
+        )) {
+            return null;
+        }
+
+        if(t1.predecessor.equals(t2)){
+            let temp = t2;
+            t2 = t1;
+            t1 = temp;
+        }
+        if(t3.predecessor.equals(t4)){
+            let temp = t4;
+            t4 = t3;
+            t3 = temp;
+        }
+        if(t5.predecessor.equals(t6)){
+            let temp = t6;
+            t6 = t5;
+            t5 = temp;
+        }
+        if(t7.predecessor.equals(t8)){
+            let temp = t8;
+            t8 = t7;
+            t7 = temp;
+        }
+
+        let nodes = [t1, t2, t3, t4, t5, t6, t7, t8]
+        nodes.sort((a, b) => a.position - b.position);
+        return [nodes[0], nodes[0].successor, nodes[2], nodes[2].successor, nodes[1], nodes[1].successor, nodes[3], nodes[3].successor];
+    }
+
+    public swapFeasible(t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode, isSubtour: boolean = false, record: boolean = true) {
+        if(!t1.successor.equals(t2)) {
+            let temp = t1;
+            t1 = t2;
+            t2 = temp;
+            let temp2 = t3;
+            t3 = t4;
+            t4 = temp2;
+        }
+
+        let segSize = t2.position - t3.position;
+
+        if(segSize < 0) {
+            segSize += this.size;
+        }
+
+        if(2*segSize > this.size) {
+            let temp = t3;
+            t3 = t2;
+            t2 = temp;
+            let temp2 = t4;
+            t4 = t1;
+            t1 = temp2;
+        }
+
+        let pos = t1.position;
+
+        let node = t3;
+
+        let endNode = t1.successor;
+
+        while (!node.equals(endNode)) {
+            let temp = node.successor;
+            node.successor = node.predecessor;
+            node.predecessor = temp;
+
+            if(!isSubtour) {
+                node.position = pos;
+                pos -= 1;
+            }
+            node = temp;
+        }
+
+        t3.successor = t2;
+        t2.predecessor = t3;
+        t1.predecessor = t4;
+        t4.successor = t1;
+
+        if(record) {
+            if(!isSubtour) {
+                this.swapStack.push([t1, t2, t3, t4, 'swap_feasible']);
+            } else {
+                this.swapStack.push([t1, t2, t3, t4, 'swap_feasible_reversed']);
+            }
+        }
+    }
+
+    public swapUnfeasible(t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode, isReverseSubtour: boolean = false, record: boolean = true) {
+        if(t1.successor.equals(t2)){
+            let temp = t3;
+            t3 = t2;
+            t2 = temp;
+            temp = t4;
+            t4 = t1;
+            t1 = temp;
+        }
+
+        t3.predecessor = t2;
+        t2.successor = t3;
+        t1.predecessor = t4;
+        t4.successor = t1;
+
+        if(isReverseSubtour) {
+            let node = t4;
+
+            while (!node.predecessor.equals(t4)) {
+                let temp = node.predecessor;
+                node.predecessor = node.successor;
+                node.successor = temp;
+
+                node = temp;
+            }
+
+            t1.predecessor = t1.successor;
+            t1.successor = t4;
+
+        }
+
+        if(record) {
+            this.swapStack.push([t1, t2, t3, t4, 'swap_unfeasible']);
+        }
+    }
+
+    public swapNodeBetweenT2T3(t1: LKNode, t4: LKNode, t5: LKNode, t6: LKNode, record: boolean = true, reverse: boolean = false) {
+        let t4AfterT1 = t1.successor.equals(t4);
+        let t6AfterT5 = t5.successor.equals(t6);
+        let reverseSubtour = t4AfterT1 !== t6AfterT5;
+
+        if(reverseSubtour || reverse){
+            let fromNode = t6;
+            let toNode = t5;
+
+            if(t6AfterT5) {
+                fromNode = t5;
+                toNode = t6;
+            }
+
+            while (!fromNode.equals(toNode)) {
+                let temp = fromNode.predecessor;
+                fromNode.predecessor = fromNode.successor;
+                fromNode.successor = temp;
+                fromNode = temp;
+            }
+
+            let temp2 = toNode.predecessor;
+            toNode.predecessor = toNode.successor;
+            toNode.successor = temp2;
+        }
+
+        if(t4AfterT1) {
+            t1.successor = t6;
+            t6.predecessor = t1;
+            t5.successor = t4;
+            t4.predecessor = t5;
+        } else {
+            t1.predecessor = t6;
+            t6.successor = t1;
+            t5.predecessor = t4;
+            t4.successor = t5;
+        }
+
+        if(record) {
+            if(reverseSubtour) {
+                this.swapStack.push([t1, t4, t5, t6, 'swap_node_between_t2_t3_reversed']);
+            } else {
+                this.swapStack.push([t1, t4, t5, t6, 'swap_node_between_t2_t3']);
+            }
+        }
+    }
+
+    public swapDoubleBridge(
+        t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode,
+        t5: LKNode, t6: LKNode, t7: LKNode, t8: LKNode, record: boolean = true
+    ) {
+        this.swapUnfeasible(t1, t2, t3, t4, false, false);
+
+        let fromNode = t4;
+        let toNode = t1;
+
+        if(t1.predecessor.equals(t2)) {
+            fromNode = t1;
+            toNode = t4;
+        }
+
+        if (!this.between(fromNode, t5, toNode)) {
+            let temp = t5;
+            t5 = t8;
+            t8 = temp;
+            temp = t6;
+            t6 = t7;
+            t7 = temp;
+        }
+
+        if((t1.successor.equals(t2) && t5.predecessor.equals(t6)) || (t1.predecessor.equals(t2) && t5.successor.equals(t6))) {
+            let temp = t5;
+            t5 = t6;
+            t6 = temp;
+            temp = t7;
+            t7 = t8;
+            t8 = temp;
+        }
+
+        this.swapUnfeasible(t5, t6, t7, t8, false, false);
+        this.setPositions();
+        if(record) {
+            this.swapStack.push([t1, t2, t3, t4, t5, t6, t7, t8, 'swap_double_bridge']);
+        }
+    }
+
+    public equals(tour: LKTour): boolean {
+        if(this.edges.length !== tour.edges.length) return false;
+        return this.edges.every(edge => tour.edges.some(tourEdge => edge.equals(tourEdge)));
+    }
+
+    public hash(): string {
+        return this.edges.map(edge => edge.hash()).join(",");
+    }
+}
+
+export class LKAlgorithm {
+    public static gain_precision = 0.001;
+    public nodes: LKNode[];
+    public startNode: LKNode;
+    public tour: LKTour;
+    public distanceMatrix: number[][];
+    public solutions: Set<string>;
+    public closestNeighbors: Map<LKNode, LKNode[]>;
+    public backtracking: number[];
+    public reductionLevel: number;
+    public reductionCycle: number;
+    public reductionEdges: Edge[];
+    public cycles: number;
+    public closeGain: number[];
+    public bestCloseGain: number;
+    public doubleBridgeGain: number;
+    public shuffle: boolean;
+
+    public constructor(
+        nodes: LKNode[],
+        costFunction: (a: LKNode, b: LKNode) => number,
+        shuffle: boolean = false,
+        backtracking: [number, number, number] = [5, 5, 5],
+        reductionLevel: number = 0,
+        reductionCycle: number = 0,
+        startNode?: number,
+    ) {
+        this.nodes = nodes;
+        this.startNode = startNode ? this.nodes[startNode] : this.nodes[Math.floor(Math.random() * this.nodes.length)];
+        this.tour = new LKTour(this.nodes);
+
+        if(shuffle) {
+            this.tour.shuffleNodes();
+        }
+
+        this.shuffle = true;
+        this.distanceMatrix = [];
+        this.setCostMatrix(costFunction);
+        this.tour.setCost(this.distanceMatrix);
+
+        this.solutions = new Set();
+        this.closestNeighbors = new Map();
+        this.setClosestNeighbors(Math.max(backtracking[0], backtracking[1]));
+
+        this.backtracking = backtracking;
+        this.reductionLevel = reductionLevel;
+        this.reductionCycle = reductionCycle;
+        this.reductionEdges = [];
+
+        this.cycles = 0;
+
+        this.closeGain = [];
+        this.bestCloseGain = 0;
+        this.doubleBridgeGain = 0;
+    }
+
+    public setCostMatrix(costFunction: (a: LKNode, b: LKNode) => number) {
+        let index = 0;
+
+        for (let i = 0; i < this.nodes.length; i++) {
+            this.distanceMatrix[i] = [];
+            for (let j = 0; j < this.nodes.length; j++) {
+                const n1 = this.nodes[i];
+                const n2 = this.nodes[j];
+                let cost = costFunction(n1, n2);
+                this.distanceMatrix[i][j] = cost;
+            }
+            index++;
+        }
+    }
+
+    public setClosestNeighbors(maxNeighbors: number) {
+        for (const node1 of this.tour.nodes) {
+            const neighbors = this.tour.nodes
+                .filter((node2) => node2.index !== node1.index);
+
+            const neighborWithCost: Array<[LKNode, number]> = neighbors.map((node2) => [node2, this.distanceMatrix[node1.index][node2.index]]);
+
+            const neighborsMin = neighborWithCost.sort((a, b) => a[1] - b[1]).slice(0, maxNeighbors);
+
+            this.closestNeighbors.set(node1, neighborsMin.map((neighbor) => neighbor[0]));
+        }
+    }
+
+    public getBestNeighbor(t2: LKNode, t1: LKNode | null = null) {
+        const bestNeighbor: Map<[LKNode, LKNode], number> = new Map();
+
+        for (const t3 of this.closestNeighbors.get(t2)) {
+            for (const t4 of [t3.predecessor, t3.successor]) {
+                if(t1 !== null) {
+                    if(this.tour.isSwapFeasible(t1, t2, t3, t4)) {
+                        bestNeighbor.set([t3, t4], this.distanceMatrix[t3.index][t4.index] - this.distanceMatrix[t2.index][t3.index]);
                     }
+                } else {
+                    bestNeighbor.set([t3, t4], this.distanceMatrix[t3.index][t4.index] - this.distanceMatrix[t2.index][t3.index]);
+                }
+            }
+        }
 
-                    const joined = [this.currentTour.makePair(t2, t3)];
+        return [...bestNeighbor.entries()].sort((a, b) => b[1] - a[1]);
+    }
 
-                    if(this.chooseX(t1, t3, distance, brokenEdges, joined)) {
-                        return true;
+    public lkFeasibleSearch(
+        level: number,
+        gain: number,
+        swapFunc: SwapType,
+        t1: LKNode,
+        t2: LKNode,
+        t3: LKNode,
+        t4: LKNode,
+        brokenEdges: Edge[],
+        joinedEdges: Edge[]
+    ){
+        const brokenEdge = new Edge(t3, t4);
+        const brokenEdgeCost = this.distanceMatrix[t3.index][t4.index];
+
+        if(level >= this.reductionLevel && this.cycles <= this.reductionCycle && this.reductionEdges.some(edge => edge.equals(brokenEdge))) {
+            return;
+        }
+
+        brokenEdges.push(new Edge(t1, t2));
+        joinedEdges.push(new Edge(t2, t3));
+
+        brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
+        joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
+
+        if(swapFunc === 'swap_feasible') {
+            this.tour.swapFeasible(t1, t2, t3, t4);
+        } else if(swapFunc === 'swap_node_between_t2_t3') {
+            this.tour.swapNodeBetweenT2T3(t1, t2, t3, t4);
+        }
+
+        const joinedCloseEdge = new Edge(t4, t1);
+        const joinedCloseEdgeCost = this.distanceMatrix[t4.index][t1.index];
+        const joinedCloseValid = !this.tour.edges.some(edge => edge.equals(joinedCloseEdge)) && !brokenEdges.some(edge => edge.equals(joinedCloseEdge));
+
+        let closeGain = gain + (brokenEdgeCost - joinedCloseEdgeCost);
+        this.closeGain.push(closeGain);
+        this.bestCloseGain = closeGain > this.bestCloseGain ? closeGain : this.bestCloseGain;
+
+        let currBacktracking = 1;
+
+        if(level <= this.backtracking.length -1) {
+            currBacktracking = this.backtracking[level];
+        }
+
+        for (const [[next_y_head, next_x_head], _] of this.getBestNeighbor(t4, t1).slice(0, currBacktracking)) {
+
+            const joinedEdge = new Edge(t4, next_y_head);
+            const joinedEdgeCost = this.distanceMatrix[t4.index][next_y_head.index];
+
+            const exploreGain = gain + (brokenEdgeCost - joinedEdgeCost);
+
+            let disjointCriteria = false;
+
+            if(!brokenEdges.some(edge => edge.equals(brokenEdge)) && !joinedEdges.some(edge => edge.equals(brokenEdge))) {
+                if(!this.tour.edges.some(edge => edge.equals(joinedEdge)) && !brokenEdges.some(edge => edge.equals(joinedEdge))) {
+                    disjointCriteria = true;
+                }
+            }
+
+            let gainCriteria = false;
+
+            if(exploreGain > LKAlgorithm.gain_precision) {
+                gainCriteria = true;
+            }
+
+            let nextXICriteria = false;
+            const next_broken_edge = new Edge(next_y_head, next_x_head);
+
+            if(!brokenEdges.some(edge => edge.equals(next_broken_edge)) && !joinedEdges.some(edge => edge.equals(next_broken_edge))) {
+                nextXICriteria = true;
+            }
+
+            if(disjointCriteria && gainCriteria && nextXICriteria) {
+                if(this.solutions.has(this.tour.nodes.map(node => node.successor.index).toString())) {
+                    return;
+                }
+
+                if(closeGain > exploreGain && closeGain >= this.bestCloseGain && closeGain > LKAlgorithm.gain_precision && joinedCloseValid){
+                    brokenEdges.push(brokenEdge);
+                    joinedEdges.push(joinedCloseEdge);
+                    brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
+                    joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
+                    return;
+                } else {
+                    this.lkFeasibleSearch(level + 1, exploreGain, "swap_feasible", t1, t4, next_y_head, next_x_head, brokenEdges, joinedEdges);
+                    return;
+                }
+            }
+        }
+    }
+
+    public lkUnfeasibleSearch(gain: number, t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode, brokenEdges: Edge[], joinedEdges: Edge[]) {
+        brokenEdges.push(new Edge(t1, t2));
+        joinedEdges.push(new Edge(t2, t3));
+        brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
+        joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
+
+        const brokenEdge1 = new Edge(t3, t4);
+        const brokenCost1 = this.distanceMatrix[t3.index][t4.index];
+
+        this.tour.swapUnfeasible(t1, t2, t3, t4);
+        this.closeGain.push(-1);
+
+        let currBacktracking = 1;
+        if(this.backtracking.length -1 >= 1) {
+            currBacktracking = this.backtracking[1];
+        }
+
+        for (const [[t5, t6], _] of this.getBestNeighbor(t4).slice(0, currBacktracking)) {
+            const joinedEdge1 = new Edge(t4, t5);
+            const joinedCost1 = this.distanceMatrix[t4.index][t5.index];
+
+            let exploreGain = gain + (brokenCost1 - joinedCost1);
+
+            let gainCriteria1 = false;
+            if(exploreGain > LKAlgorithm.gain_precision) {
+                gainCriteria1 = true;
+            }
+
+            let validNodes = false;
+            if(!t5.equals(t1) && !t5.equals(t2) && !t5.equals(t3) && !t5.equals(t4)){
+                if(!t6.equals(t1) && !t6.equals(t2) && !t6.equals(t3) && !t6.equals(t4)){
+                    validNodes = true;
+                }
+            }
+
+            if(gainCriteria1 && validNodes) {
+                const brokenEdge2 = new Edge(t5, t6);
+                const brokenCost2 = this.distanceMatrix[t5.index][t6.index];
+
+                let t5BetweenT1T4 = false;
+                let t1AfterT4 = t4.successor.equals(t1);
+
+                if(t1AfterT4) {
+                    t5BetweenT1T4 = this.tour.between(t1, t5, t4);
+                } else {
+                    t5BetweenT1T4 = this.tour.between(t4, t5, t1);
+                }
+
+                if(t5BetweenT1T4) {
+                    if(this.tour.isSwapFeasible(t1, t4, t5, t6)) {
+                        currBacktracking = 1;
+
+                        if(this.backtracking.length -1 >= 2) {
+                            currBacktracking = this.backtracking[2];
+                        }
+
+                        for (const [[t7, t8], _] of this.getBestNeighbor(t6).slice(0, currBacktracking)) {
+                            const joinedEdge2 = new Edge(t6, t7);
+                            const joinedCost2 = this.distanceMatrix[t6.index][t7.index];
+
+                            exploreGain += (brokenCost2 - joinedCost2);
+
+                            let gainCriteria2 = false;
+                            if(exploreGain > LKAlgorithm.gain_precision) {
+                                gainCriteria2 = true;
+                            }
+
+                            let t7BetweenT2T3 = false;
+
+                            let t2AfterT3 = t3.successor.equals(t2);
+
+                            if(t2AfterT3) {
+                                t7BetweenT2T3 = this.tour.between(t2, t7, t3);
+                            } else {
+                                t7BetweenT2T3 = this.tour.between(t3, t7, t2);
+                            }
+
+                            let validNodes = false;
+
+                            if(!t7.equals(t2) && !t7.equals(t3) && !t8.equals(t2) && !t8.equals(t3)){
+                                validNodes = true;
+                            }
+
+                            if(gainCriteria2 && t7BetweenT2T3 && validNodes) {
+                                const brokenEdge3 = new Edge(t7, t8);
+
+                                this.tour.swapFeasible(t1, t4, t5, t6, true);
+                                this.closeGain.push(-1);
+
+                                brokenEdges.push(brokenEdge1);
+                                brokenEdges.push(brokenEdge2);
+                                brokenEdges.push(brokenEdge3);
+                                joinedEdges.push(joinedEdge1);
+                                joinedEdges.push(joinedEdge2);
+                                brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
+                                joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
+                                this.lkFeasibleSearch(4, exploreGain, "swap_node_between_t2_t3", t1, t6, t7, t8, brokenEdges, joinedEdges);
+                                return;
+                            }
+                        }
                     }
+                } else {
+                    brokenEdges.push(brokenEdge1);
+                    joinedEdges.push(joinedEdge1);
+                    brokenEdges.push(brokenEdge2);
+                    brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
+                    joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
+                    this.lkFeasibleSearch(3, exploreGain, "swap_node_between_t2_t3", t1, t4, t5, t6, brokenEdges, joinedEdges);
+                    return;
+                }
+            }
+        }
+        this.tour.restore();
+    }
 
-                    tries--;
-                    if(tries === 0) {
+    public lkDoubleBridgeSearch(maxTests: number = 100) {
+        let searchEngine = [...this.tour.edges].filter((edge) => !this.reductionEdges.some((reductionEdge) => reductionEdge.equals(edge)));
+
+        if(searchEngine.length >= 4) {
+            for(let i = 0; i < maxTests; i++) {
+                searchEngine = shuffle(searchEngine);
+
+                let brokenEdge1 = searchEngine[0];
+                let brokenEdge2 = searchEngine[1];
+                let brokenEdge3 = searchEngine[2];
+                let brokenEdge4 = searchEngine[3];
+                let doubleBridgeNodes = this.tour.isSwapDoubleBridge(brokenEdge1.node1, brokenEdge1.node2, brokenEdge2.node1, brokenEdge2.node2, brokenEdge3.node1, brokenEdge3.node2, brokenEdge4.node1, brokenEdge4.node2);
+
+                if(doubleBridgeNodes) {
+                    let t1 = doubleBridgeNodes[0];
+                    let t2 = doubleBridgeNodes[1];
+                    let t3 = doubleBridgeNodes[2];
+                    let t4 = doubleBridgeNodes[3];
+                    let t5 = doubleBridgeNodes[4];
+                    let t6 = doubleBridgeNodes[5];
+                    let t7 = doubleBridgeNodes[6];
+                    let t8 = doubleBridgeNodes[7];
+
+                    let brokenCost1 = this.distanceMatrix[t1.index][t2.index];
+                    let brokenCost2 = this.distanceMatrix[t3.index][t4.index];
+                    let brokenCost3 = this.distanceMatrix[t5.index][t6.index];
+                    let brokenCost4 = this.distanceMatrix[t7.index][t8.index];
+
+                    let joinedCost1 = this.distanceMatrix[t1.index][t4.index];
+                    let joinedCost2 = this.distanceMatrix[t2.index][t3.index];
+                    let joinedCost3 = this.distanceMatrix[t5.index][t8.index];
+                    let joinedCost4 = this.distanceMatrix[t6.index][t7.index];
+
+                    let gain = (brokenCost1 + brokenCost2 + brokenCost3 + brokenCost4) - (joinedCost1 + joinedCost2 + joinedCost3 + joinedCost4);
+
+                    if(gain > LKAlgorithm.gain_precision) {
+                        this.tour.swapDoubleBridge(t1, t2, t3, t4, t5, t6, t7, t8, false);
+
+                        this.doubleBridgeGain = gain;
+                        this.tour.edges = this.tour.edges.filter((edge) =>
+                            edge.equals(new Edge(t1, t2)) ||
+                            edge.equals(new Edge(t3, t4)) ||
+                            edge.equals(new Edge(t5, t6)) ||
+                            edge.equals(new Edge(t7, t8))
+                        );
+
+                        this.tour.edges.push(new Edge(t1, t4));
+                        this.tour.edges.push(new Edge(t2, t3));
+                        this.tour.edges.push(new Edge(t5, t8));
+                        this.tour.edges.push(new Edge(t6, t7));
                         break;
                     }
                 }
             }
         }
 
-        return false;
-    }
+    };
 
-    public chooseX = (t1: number, last: number, gain: number, brokenEdges: Array<[number, number]>, joinedEdges: Array<[number, number]>): boolean => {
-        let around: number[];
+    public lkMain(): boolean {
+        for (const t1 of this.tour.getNodes(undefined, this.startNode)) {
+            for (const t2 of [t1.predecessor, t1.successor]) {
+                const brokenCost = this.distanceMatrix[t1.index][t2.index];
 
-        if(brokenEdges.length === 4) {
-            const [pred, succ] = this.currentTour.getPredecessorAndSuccessor(last);
-            if(this.distanceMatrix[pred][last] > this.distanceMatrix[succ][last]) {
-                around = [pred];
-            } else {
-                around = [succ];
-            }
-        } else {
-            around = this.currentTour.getPredecessorAndSuccessor(last);
-        }
+                for (const [[t3, t4], _] of this.getBestNeighbor(t2).slice(0, this.backtracking[0])) {
+                    const joinedEdge = new Edge(t3, t2);
+                    const joinedCost = this.distanceMatrix[t3.index][t2.index];
 
-        for (const t2i of around) {
-            const xi = this.currentTour.makePair(last, t2i);
+                    const gain = brokenCost - joinedCost;
 
-            const Gi = gain + this.distanceMatrix[last][t2i];
+                    if (gain > LKAlgorithm.gain_precision && !this.tour.edges.some(edge => edge.equals(joinedEdge))) {
+                        const brokenEdges: Edge[] = [];
+                        const joinedEdges: Edge[] = [];
 
-            const notInBrokenEdges = !brokenEdges.find((edge) => (edge[0] === xi[0] && edge[1] === xi[1]) || (edge[0] === xi[1] && edge[1] === xi[0]));
-            const notInJoinedEdges = !joinedEdges.find((edge) => (edge[0] === xi[0] && edge[1] === xi[1]) || (edge[0] === xi[1] && edge[1] === xi[0]));
+                        if(this.tour.isSwapFeasible(t1, t2, t3, t4)) {
+                            this.lkFeasibleSearch(1, gain, "swap_feasible", t1, t2, t3, t4, brokenEdges, joinedEdges);
+                        } else if (this.tour.isSwapUnfeasible(t1, t2, t3, t4)) {
+                            this.lkUnfeasibleSearch( gain, t1, t2, t3, t4, brokenEdges, joinedEdges);
+                        }
 
-            if(notInBrokenEdges && notInJoinedEdges) {
-                const newBrokenEdges = [...brokenEdges, xi];
-                const newJoinedEdges = [...joinedEdges, this.currentTour.makePair(t1, t2i)];
+                        if (this.closeGain.length > 0) {
+                            if(Math.max(...this.closeGain) > 0) {
+                                const bestIndex = this.closeGain.indexOf(Math.max(...this.closeGain));
 
-                const relink = Gi - this.distanceMatrix[t1][t2i];
+                                for (let i = 0; i <= bestIndex; i++) {
+                                    const [n1, n2, n3, n4, _] = this.tour.swapStack[i];
+                                    this.tour.edges = this.tour.edges.filter((edge) => !edge.equals(new Edge(n1, n2)) && !edge.equals(new Edge(n3, n4)));
+                                    this.tour.edges.push(new Edge(n2, n3));
+                                    this.tour.edges.push(new Edge(n4, n1));
+                                }
+                                this.tour.restore((this.closeGain.length -1) - bestIndex);
 
-                const {isTour, tour} = this.currentTour.generateNewTour(newBrokenEdges, newJoinedEdges);
+                                this.startNode = this.tour.swapStack[this.tour.swapStack.length - 1][3];
 
+                                this.tour.setCost(this.distanceMatrix);
 
-                if(!isTour && newJoinedEdges.length > 2) {
-                    console.log('not tour');
-                    continue;
-                }
+                                this.closeGain = []
 
-                if(this.alreadyFoundedSolutions.has(tour.toString())) {
-                    console.log('already founded');
-                    return false;
-                }
-
-                if(isTour && relink > 0) {
-                    console.log('better');
-                    console.log('better tour', tour);
-
-                    this.currentTour.saveTour(tour);
-                    this.alreadyFoundedSolutions.add(tour.toString());
-                    return true;
-                } else {
-                    const choice = this.chooseY(t1, t2i, Gi, newBrokenEdges, joinedEdges);
-
-                    if(choice && brokenEdges.length == 2) {
-                        return true;
-                    } else {
-                        return choice;
+                                return true;
+                            } else {
+                                this.closeGain = []
+                                this.tour.restore();
+                            }
+                        }
                     }
                 }
             }
@@ -363,52 +910,34 @@ export class LinKernighanAlgorithm {
         return false;
     }
 
-    public chooseY = (t1: number, t2i: number, gain: number, brokenEdges: Array<[number, number]>, joinedEdges: Array<[number, number]>): boolean => {
-        const closestArr = this.neighbors[t2i].filter((neighbor) => {
-            const inBrokenEdges = brokenEdges.some((brokenEdge) => brokenEdge[0] === neighbor[0] || brokenEdge[1] === neighbor[0]);
-            const inJoinedEdges = joinedEdges.some((joinedEdge) => joinedEdge[0] === neighbor[0] || joinedEdge[1] === neighbor[0]);
-            const around = this.currentTour.getPredecessorAndSuccessor(neighbor[0]);
-            const isGainNegative = this.distanceMatrix[neighbor[0]][around[1]] - neighbor[1] < 0;
-            const isSecoundGainNegative = gain - neighbor[1] < 0;
-            const tourContains = this.currentTour.edges.some((edge) => (edge[0] === neighbor[0]  && edge[1] === t2i) || (edge[0] === t2i && edge[1] === neighbor[0]));
-            return !inBrokenEdges && !isGainNegative && !tourContains && !inJoinedEdges && !isSecoundGainNegative;
-        });
+    public lk () {
+        let tourCount = 1;
+        let improved = true;
 
-        closestArr.sort((a, b) => {
-            const aroundA = this.currentTour.getPredecessorAndSuccessor(a[0]);
-            const aroundB = this.currentTour.getPredecessorAndSuccessor(b[0]);
-            const gainA = this.distanceMatrix[a[0]][aroundA[1]] - a[1];
-            const gainB = this.distanceMatrix[b[0]][aroundB[1]] - b[1];
-            return gainA - gainB;
-        });
+        while (improved) {
+            improved = this.lkMain();
+            tourCount++;
+            this.tour.swapStack.length = 0;
+            this.bestCloseGain = 0;
+            if(tourCount > 2000) break;
+        }
 
-        let top: number;
+        this.cycles += 1;
 
-        if(brokenEdges.length == 2)  top = 10;
-        else top = 3;
+        this.solutions.add(this.tour.nodes.map((node) => node.successor.index).toString());
+        this.solutions.add(this.tour.nodes.map((node) => node.predecessor.index).toString());
 
-        for(const closest of closestArr) {
-            const yi = this.currentTour.makePair(t2i, closest[0]);
-            const newJoinedEdges = [...joinedEdges, yi];
+        this.reductionEdges = this.cycles === 1 ? [...this.tour.edges] : [...this.reductionEdges.filter((edge) => this.tour.edges.some((e) => e.equals(edge)))];
 
-            if (this.chooseX(t1, closest[0], closest[1], brokenEdges, newJoinedEdges)) {
-                return true;
-            }
-
-            top--;
-
-            if(top === 0) {
-                break;
+        if(this.cycles >= this.reductionCycle) {
+            this.lkDoubleBridgeSearch();
+            if(this.doubleBridgeGain > 0) {
+                this.doubleBridgeGain = 0;
+                this.shuffle = false
+            } else {
+                this.shuffle = true;
             }
         }
-        return false;
     }
 
-    public returnResult = (): AlgorithmResponse => {
-        return {
-            bestPathIndexes: this.currentTour.tour.map((node) => node + 1),
-            time: String(this.time),
-            distance: this.currentTour.costOfTour
-        }
-    }
 }

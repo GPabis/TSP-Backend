@@ -35,11 +35,10 @@ export class BranchAndBoundAlgorithm {
     public time: bigint | undefined;
     public distanceMatrix: number[][] = [];
     public nodes: BranchAndBoundNode[] = [];
-    public firstIteration: boolean = true;
     public numberOfNodes;
     public visitedNodes: boolean[];
 
-    public constructor(public readonly initNodes: Node[], public indexOfStartNode: number){
+    public constructor(public readonly initNodes: Node[]){
         this.nodes = initNodes.map((node, index) => new BranchAndBoundNode(node, index));
         this.distanceMatrix = this.nodes.map(node1 => this.nodes.map(node2 => node1.distanceToNode(node2)));
         this.numberOfNodes = this.nodes.length;
