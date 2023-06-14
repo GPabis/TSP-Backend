@@ -35,7 +35,7 @@ jobs:
           registry: ghcr.io
           username: ${{ secrets.USERNAME }}
           password: ${{ secrets.GITHUB_TOKEN }}
-          buildargs: VPS_HOST,DB_NAME,DB_PORT,DB_USER,DB_PASSWORD,JWT_SECRET
+          buildargs: VPS_HOST,DB_NAME,DB_PORT,DB_USER,DB_PASSWORD,JWT_SECRET,FRONTEND_URL
           dockerfile: Dockerfile
           tags: "latest,${{ steps.pre-step.outputs.release-version }}"
       - name: Deploy package to vps
