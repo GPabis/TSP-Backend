@@ -9,4 +9,5 @@ export default () => ({
         port: process.env.DB_PORT,
     },
     jwt: process.env.JWT_SECRET,
+    frontendUrl: process.env.FRONTEND_URL,
 });

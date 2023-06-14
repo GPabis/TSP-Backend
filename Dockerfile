@@ -23,6 +23,9 @@ ENV DB_PORT=$DB_PORT
 ARG JWT_SECRET
 ENV JWT_SECRET=$JWT_SECRET
 
+ARG FRONTEND_URL
+ENV FRONTEND_URL=$FRONTEND_URL
+
 RUN npm i -g @nestjs/cli
 COPY package.json .
 COPY package-lock.json .
