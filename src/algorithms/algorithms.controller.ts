@@ -8,7 +8,7 @@ export class AlgorithmsController {
 
     constructor(private readonly antColonyService: AlgorithmsService) {}
     @UseGuards(JwtAuthGuard)
-    @Post('antColonyAlgorithm')
+    @Post('I')
     public getAntColonyAlgorithm(@Body() nodes: AlgorithmRequest): AlgorithmResponse {
         return this.antColonyService.runAntColonyAlgorithm(nodes);
     }
