@@ -1,7 +1,7 @@
 import {AlgorithmResponse, Node} from "./dto/antColonyAlgorithm.dto";
 
 export class BranchAndBoundNode {
-    public constructor(public readonly node: Node, public  readonly  index: number) {}
+    public constructor(public readonly node: Node) {}
 
     public distanceToNode = (targetNode: BranchAndBoundNode): number => {
         if(this.node.nodeIndex === targetNode.node.nodeIndex) return 0;
@@ -29,9 +29,6 @@ export class BranchAndBoundNode {
 export class BranchAndBoundAlgorithm {
     public bestPath: number[] = [];
     public finalResult: number = Number.MAX_VALUE;
-    public breaks: number = 0;
-    public finishedIterations: number = 0;
-    public runs: number = 0;
     public time: bigint | undefined;
     public distanceMatrix: number[][] = [];
     public nodes: BranchAndBoundNode[] = [];
@@ -39,7 +36,7 @@ export class BranchAndBoundAlgorithm {
     public visitedNodes: boolean[];
 
     public constructor(public readonly initNodes: Node[]){
-        this.nodes = initNodes.map((node, index) => new BranchAndBoundNode(node, index));
+        this.nodes = initNodes.map((node) => new BranchAndBoundNode(node));
         this.distanceMatrix = this.nodes.map(node1 => this.nodes.map(node2 => node1.distanceToNode(node2)));
         this.numberOfNodes = this.nodes.length;
         this.visitedNodes = Array(this.numberOfNodes).fill(false);
@@ -48,16 +45,16 @@ export class BranchAndBoundAlgorithm {
 
     public runAlgorithm = (): void => {
         this.time = BigInt(Date.now());
-        let currBound = 0;
-        let currPath = Array (this.numberOfNodes).fill (-1);
+        let currPath = Array(this.numberOfNodes).fill (-1);
 
+        let currBound = 0;
         for (let i = 0; i < this.numberOfNodes; i++){
             const sortedDistanceMatrix = [...this.distanceMatrix[i]]
             sortedDistanceMatrix.sort((distA, distB) => distA - distB);
-            currBound += this.firstMin(sortedDistanceMatrix) + this.secondMin(sortedDistanceMatrix);
+            currBound += sortedDistanceMatrix[1] + sortedDistanceMatrix[2];
         }
-
         currBound = currBound / 2
+
         this.visitedNodes[0] = true;
         currPath[0] = 0;
 
@@ -66,12 +63,8 @@ export class BranchAndBoundAlgorithm {
     }
 
     public branchAndBound = (currBound: number, currWeight: number, level: number, currPatch: number[]): void => {
-        this.runs++;
-        if(this.runs % 100000 === 0) console.log(this.runs);
-
         if(level === this.numberOfNodes){
             const best = currWeight + this.distanceMatrix[currPatch[level - 1]][currPatch[0]];
-            this.finishedIterations++;
             if(best < this.finalResult){
                 this.finalResult = best;
                 this.bestPath = currPatch.map(node => node + 1);
@@ -88,9 +81,9 @@ export class BranchAndBoundAlgorithm {
                     sortedDistanceMatrixOfNextNode.sort((distA, distB) => distA - distB);
 
                     if (level ==  1){
-                        currBound -= (this.firstMin(sortedDistanceMatrix) + this.firstMin(sortedDistanceMatrixOfNextNode)) / 2;
+                        currBound -= (sortedDistanceMatrix[1] + sortedDistanceMatrixOfNextNode[1]) / 2;
                     } else {
-                        currBound -= (this.secondMin(sortedDistanceMatrix) + this.firstMin(sortedDistanceMatrixOfNextNode)) / 2;
+                        currBound -= (sortedDistanceMatrix[2] + sortedDistanceMatrixOfNextNode[1]) / 2;
                     }
 
                     if (currBound + currWeight < this.finalResult){
@@ -101,7 +94,6 @@ export class BranchAndBoundAlgorithm {
 
                     currWeight -= distance;
                     currBound = temp;
-                    this.breaks++;
 
                     this.visitedNodes.fill (false)
                     for (let j = 0; j <= level - 1; j++)
@@ -116,18 +108,7 @@ export class BranchAndBoundAlgorithm {
         return {distance: sortedArray[nth], indexOfNthSmallest};
     }
 
-    private firstMin = (sortedArray: number[]): number => {
-        return sortedArray[1]
-    }
-
-    private secondMin = (sortedArray: number[]) => {
-        return sortedArray[2]
-    }
-
     public returnResults = (): AlgorithmResponse => {
-        console.log('breaks', this.breaks);
-        console.log('runs', this.runs);
-        console.log('finishedIterations', this.finishedIterations);
         return {
             bestPathIndexes: this.bestPath,
             distance: this.finalResult,

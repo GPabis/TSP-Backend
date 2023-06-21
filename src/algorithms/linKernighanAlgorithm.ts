@@ -1,4 +1,5 @@
 import { shuffle } from "./utils";
+import {AlgorithmResponse} from "./dto/antColonyAlgorithm.dto";
 
 export class LKNode {
     public index: number = -1;
@@ -22,7 +23,7 @@ export class LKNode {
     }
 }
 
-export class Edge {
+export class LKEdge {
     public node1: LKNode;
     public node2: LKNode;
 
@@ -39,7 +40,7 @@ export class Edge {
         }
     }
 
-    public equals(edge: Edge): boolean {
+    public equals(edge: LKEdge): boolean {
         return (this.node1.equals(edge.node1) && this.node2.equals(edge.node2)) ||
             (this.node1.equals(edge.node2) && this.node2.equals(edge.node1));
     }
@@ -52,11 +53,10 @@ export class Edge {
 type SwapType = 'swap_feasible' | 'swap_unfeasible' | 'swap_node_between_t2_t3' | 'swap_node_between_t2_t3_reversed' | 'swap_feasible_reversed';
 
 export class LKTour {
-    public edges: Edge[];
+    public edges: LKEdge[];
     public nodes: LKNode[];
     public cost: number;
     public size: number;
-    public haveSameSuccessor: boolean = false;
     public swapStack: Array<[LKNode, LKNode, LKNode, LKNode, SwapType] | [LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, LKNode, 'swap_double_bridge']>;
 
     public constructor(nodes: LKNode[]) {
@@ -95,11 +95,11 @@ export class LKTour {
         let currNode = this.nodes[0];
 
         while(currNode.successor.index != this.nodes[0].index) {
-            tourEdges.push(new Edge(currNode, currNode.successor));
+            tourEdges.push(new LKEdge(currNode, currNode.successor));
             currNode = currNode.successor;
         }
 
-        tourEdges.push(new Edge(currNode, currNode.successor));
+        tourEdges.push(new LKEdge(currNode, currNode.successor));
         this.edges = tourEdges;
     }
 
@@ -312,13 +312,10 @@ export class LKTour {
             t3 = t4;
             t4 = temp2;
         }
-
         let segSize = t2.position - t3.position;
-
         if(segSize < 0) {
             segSize += this.size;
         }
-
         if(2*segSize > this.size) {
             let temp = t3;
             t3 = t2;
@@ -327,13 +324,9 @@ export class LKTour {
             t4 = t1;
             t1 = temp2;
         }
-
         let pos = t1.position;
-
         let node = t3;
-
         let endNode = t1.successor;
-
         while (!node.equals(endNode)) {
             let temp = node.successor;
             node.successor = node.predecessor;
@@ -345,12 +338,10 @@ export class LKTour {
             }
             node = temp;
         }
-
         t3.successor = t2;
         t2.predecessor = t3;
         t1.predecessor = t4;
         t4.successor = t1;
-
         if(record) {
             if(!isSubtour) {
                 this.swapStack.push([t1, t2, t3, t4, 'swap_feasible']);
@@ -503,12 +494,15 @@ export class LKAlgorithm {
     public backtracking: number[];
     public reductionLevel: number;
     public reductionCycle: number;
-    public reductionEdges: Edge[];
+    public reductionEdges: LKEdge[];
     public cycles: number;
     public closeGain: number[];
     public bestCloseGain: number;
     public doubleBridgeGain: number;
     public shuffle: boolean;
+    public bestTour: LKNode[] = [];
+    public bestCost: number = Number.MAX_SAFE_INTEGER;
+    public time: string = '';
 
     public constructor(
         nodes: LKNode[],
@@ -602,18 +596,18 @@ export class LKAlgorithm {
         t2: LKNode,
         t3: LKNode,
         t4: LKNode,
-        brokenEdges: Edge[],
-        joinedEdges: Edge[]
+        brokenEdges: LKEdge[],
+        joinedEdges: LKEdge[]
     ){
-        const brokenEdge = new Edge(t3, t4);
+        const brokenEdge = new LKEdge(t3, t4);
         const brokenEdgeCost = this.distanceMatrix[t3.index][t4.index];
 
         if(level >= this.reductionLevel && this.cycles <= this.reductionCycle && this.reductionEdges.some(edge => edge.equals(brokenEdge))) {
             return;
         }
 
-        brokenEdges.push(new Edge(t1, t2));
-        joinedEdges.push(new Edge(t2, t3));
+        brokenEdges.push(new LKEdge(t1, t2));
+        joinedEdges.push(new LKEdge(t2, t3));
 
         brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
         joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
@@ -624,7 +618,7 @@ export class LKAlgorithm {
             this.tour.swapNodeBetweenT2T3(t1, t2, t3, t4);
         }
 
-        const joinedCloseEdge = new Edge(t4, t1);
+        const joinedCloseEdge = new LKEdge(t4, t1);
         const joinedCloseEdgeCost = this.distanceMatrix[t4.index][t1.index];
         const joinedCloseValid = !this.tour.edges.some(edge => edge.equals(joinedCloseEdge)) && !brokenEdges.some(edge => edge.equals(joinedCloseEdge));
 
@@ -640,7 +634,7 @@ export class LKAlgorithm {
 
         for (const [[next_y_head, next_x_head], _] of this.getBestNeighbor(t4, t1).slice(0, currBacktracking)) {
 
-            const joinedEdge = new Edge(t4, next_y_head);
+            const joinedEdge = new LKEdge(t4, next_y_head);
             const joinedEdgeCost = this.distanceMatrix[t4.index][next_y_head.index];
 
             const exploreGain = gain + (brokenEdgeCost - joinedEdgeCost);
@@ -660,7 +654,7 @@ export class LKAlgorithm {
             }
 
             let nextXICriteria = false;
-            const next_broken_edge = new Edge(next_y_head, next_x_head);
+            const next_broken_edge = new LKEdge(next_y_head, next_x_head);
 
             if(!brokenEdges.some(edge => edge.equals(next_broken_edge)) && !joinedEdges.some(edge => edge.equals(next_broken_edge))) {
                 nextXICriteria = true;
@@ -685,13 +679,13 @@ export class LKAlgorithm {
         }
     }
 
-    public lkUnfeasibleSearch(gain: number, t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode, brokenEdges: Edge[], joinedEdges: Edge[]) {
-        brokenEdges.push(new Edge(t1, t2));
-        joinedEdges.push(new Edge(t2, t3));
+    public lkUnfeasibleSearch(gain: number, t1: LKNode, t2: LKNode, t3: LKNode, t4: LKNode, brokenEdges: LKEdge[], joinedEdges: LKEdge[]) {
+        brokenEdges.push(new LKEdge(t1, t2));
+        joinedEdges.push(new LKEdge(t2, t3));
         brokenEdges = brokenEdges.filter(edge => brokenEdges.filter(e => e.equals(edge)).length === 1);
         joinedEdges = joinedEdges.filter(edge => joinedEdges.filter(e => e.equals(edge)).length === 1);
 
-        const brokenEdge1 = new Edge(t3, t4);
+        const brokenEdge1 = new LKEdge(t3, t4);
         const brokenCost1 = this.distanceMatrix[t3.index][t4.index];
 
         this.tour.swapUnfeasible(t1, t2, t3, t4);
@@ -703,7 +697,7 @@ export class LKAlgorithm {
         }
 
         for (const [[t5, t6], _] of this.getBestNeighbor(t4).slice(0, currBacktracking)) {
-            const joinedEdge1 = new Edge(t4, t5);
+            const joinedEdge1 = new LKEdge(t4, t5);
             const joinedCost1 = this.distanceMatrix[t4.index][t5.index];
 
             let exploreGain = gain + (brokenCost1 - joinedCost1);
@@ -721,7 +715,7 @@ export class LKAlgorithm {
             }
 
             if(gainCriteria1 && validNodes) {
-                const brokenEdge2 = new Edge(t5, t6);
+                const brokenEdge2 = new LKEdge(t5, t6);
                 const brokenCost2 = this.distanceMatrix[t5.index][t6.index];
 
                 let t5BetweenT1T4 = false;
@@ -742,7 +736,7 @@ export class LKAlgorithm {
                         }
 
                         for (const [[t7, t8], _] of this.getBestNeighbor(t6).slice(0, currBacktracking)) {
-                            const joinedEdge2 = new Edge(t6, t7);
+                            const joinedEdge2 = new LKEdge(t6, t7);
                             const joinedCost2 = this.distanceMatrix[t6.index][t7.index];
 
                             exploreGain += (brokenCost2 - joinedCost2);
@@ -769,7 +763,7 @@ export class LKAlgorithm {
                             }
 
                             if(gainCriteria2 && t7BetweenT2T3 && validNodes) {
-                                const brokenEdge3 = new Edge(t7, t8);
+                                const brokenEdge3 = new LKEdge(t7, t8);
 
                                 this.tour.swapFeasible(t1, t4, t5, t6, true);
                                 this.closeGain.push(-1);
@@ -840,22 +834,21 @@ export class LKAlgorithm {
 
                         this.doubleBridgeGain = gain;
                         this.tour.edges = this.tour.edges.filter((edge) =>
-                            edge.equals(new Edge(t1, t2)) ||
-                            edge.equals(new Edge(t3, t4)) ||
-                            edge.equals(new Edge(t5, t6)) ||
-                            edge.equals(new Edge(t7, t8))
+                            edge.equals(new LKEdge(t1, t2)) ||
+                            edge.equals(new LKEdge(t3, t4)) ||
+                            edge.equals(new LKEdge(t5, t6)) ||
+                            edge.equals(new LKEdge(t7, t8))
                         );
 
-                        this.tour.edges.push(new Edge(t1, t4));
-                        this.tour.edges.push(new Edge(t2, t3));
-                        this.tour.edges.push(new Edge(t5, t8));
-                        this.tour.edges.push(new Edge(t6, t7));
+                        this.tour.edges.push(new LKEdge(t1, t4));
+                        this.tour.edges.push(new LKEdge(t2, t3));
+                        this.tour.edges.push(new LKEdge(t5, t8));
+                        this.tour.edges.push(new LKEdge(t6, t7));
                         break;
                     }
                 }
             }
         }
-
     };
 
     public lkMain(): boolean {
@@ -864,14 +857,14 @@ export class LKAlgorithm {
                 const brokenCost = this.distanceMatrix[t1.index][t2.index];
 
                 for (const [[t3, t4], _] of this.getBestNeighbor(t2).slice(0, this.backtracking[0])) {
-                    const joinedEdge = new Edge(t3, t2);
+                    const joinedEdge = new LKEdge(t3, t2);
                     const joinedCost = this.distanceMatrix[t3.index][t2.index];
 
                     const gain = brokenCost - joinedCost;
 
                     if (gain > LKAlgorithm.gain_precision && !this.tour.edges.some(edge => edge.equals(joinedEdge))) {
-                        const brokenEdges: Edge[] = [];
-                        const joinedEdges: Edge[] = [];
+                        const brokenEdges: LKEdge[] = [];
+                        const joinedEdges: LKEdge[] = [];
 
                         if(this.tour.isSwapFeasible(t1, t2, t3, t4)) {
                             this.lkFeasibleSearch(1, gain, "swap_feasible", t1, t2, t3, t4, brokenEdges, joinedEdges);
@@ -885,9 +878,9 @@ export class LKAlgorithm {
 
                                 for (let i = 0; i <= bestIndex; i++) {
                                     const [n1, n2, n3, n4, _] = this.tour.swapStack[i];
-                                    this.tour.edges = this.tour.edges.filter((edge) => !edge.equals(new Edge(n1, n2)) && !edge.equals(new Edge(n3, n4)));
-                                    this.tour.edges.push(new Edge(n2, n3));
-                                    this.tour.edges.push(new Edge(n4, n1));
+                                    this.tour.edges = this.tour.edges.filter((edge) => !edge.equals(new LKEdge(n1, n2)) && !edge.equals(new LKEdge(n3, n4)));
+                                    this.tour.edges.push(new LKEdge(n2, n3));
+                                    this.tour.edges.push(new LKEdge(n4, n1));
                                 }
                                 this.tour.restore((this.closeGain.length -1) - bestIndex);
 
@@ -937,6 +930,33 @@ export class LKAlgorithm {
             } else {
                 this.shuffle = true;
             }
+        }
+    }
+
+    public runAlgorithm (numberOfRepetitions: number) {
+        let time = BigInt(Date.now());
+        for (let i = 0; i < numberOfRepetitions; i++) {
+            if(this.shuffle) {
+                this.tour.shuffleNodes();
+            }
+            this.tour.setCost(this.distanceMatrix);
+
+            this.lk();
+
+            if(this.tour.cost < this.bestCost) {
+                this.bestTour = this.tour.getNodes();
+                this.bestCost = this.tour.cost;
+            }
+        }
+
+        this.time = (BigInt(Date.now()) - BigInt(time)).toString();
+    }
+
+    public returnResults (): AlgorithmResponse {
+        return {
+            distance: this.bestCost,
+            bestPathIndexes: this.bestTour.map((node) => node.index + 1),
+            time: this.time,
         }
     }
 
