@@ -326,7 +326,7 @@ export class LKTour {
         }
         let pos = t1.position;
         let node = t3;
-        let endNode = t1.successor;
+        const endNode = t1.successor;
         while (!node.equals(endNode)) {
             let temp = node.successor;
             node.successor = node.predecessor;
@@ -859,7 +859,6 @@ export class LKAlgorithm {
                 for (const [[t3, t4], _] of this.getBestNeighbor(t2).slice(0, this.backtracking[0])) {
                     const joinedEdge = new LKEdge(t3, t2);
                     const joinedCost = this.distanceMatrix[t3.index][t2.index];
-
                     const gain = brokenCost - joinedCost;
 
                     if (gain > LKAlgorithm.gain_precision && !this.tour.edges.some(edge => edge.equals(joinedEdge))) {
@@ -882,12 +881,10 @@ export class LKAlgorithm {
                                     this.tour.edges.push(new LKEdge(n2, n3));
                                     this.tour.edges.push(new LKEdge(n4, n1));
                                 }
+
                                 this.tour.restore((this.closeGain.length -1) - bestIndex);
-
                                 this.startNode = this.tour.swapStack[this.tour.swapStack.length - 1][3];
-
                                 this.tour.setCost(this.distanceMatrix);
-
                                 this.closeGain = []
 
                                 return true;
